@@ -272,11 +272,8 @@ INDEX_HTML = """
   input[type="file"] { width: 100%; padding: 10px; background: #f9f9f9; border: 1px dashed #ccc; border-radius: 4px; box-sizing: border-box; }
   button { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; margin-top: 20px; background: #28a745; color: #fff; border: none; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
   button:active { background: #218838; }
-  #msg { margin-top: 16px; font-size: 14px; color: #d9534f; font-weight: bold; text-align: center; }
-  #preview-container { display: none; margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }
-  .action-btn { background: #1a4f8a; margin-top: 10px; }
-  /* ★プレビュー枠を大きく、背景色をつけて紙を目立たせる★ */
-  iframe { width: 100%; height: 80vh; border: 1px solid #ccc; border-radius: 4px; margin-top: 10px; background: #e0e0e0; }
+  button:disabled { background: #ccc; cursor: not-allowed; }
+  #msg { margin-top: 16px; font-size: 14px; color: #1a4f8a; font-weight: bold; text-align: center; }
   #app-screen { display: none; }
 </style>
 </head>
@@ -289,7 +286,7 @@ INDEX_HTML = """
   <label>合言葉</label>
   <input type="password" id="passcode" placeholder="パスワードを入力">
   <button id="btn-login">ログイン</button>
-  <p id="login-msg"></p>
+  <p id="msg" style="color:#d9534f;"></p>
 </div>
 
 <div class="container" id="app-screen">
@@ -300,15 +297,8 @@ INDEX_HTML = """
   <input type="file" id="img" accept="image/*" capture="environment">
   <label>プリントのタイトル</label>
   <input type="text" id="title" value="計算復習プリント">
-  <button id="go">類題を作成する</button>
-  <p id="msg"></p>
-
-  <div id="preview-container">
-    <h2>生成結果プレビュー</h2>
-    <p style="font-size:12px; color:#666;">※プレビューは縮小表示されています。印刷ボタンからPDF保存が可能です。</p>
-    <iframe id="preview-frame"></iframe>
-    <button class="action-btn" id="btn-print">このプリントを印刷する</button>
-  </div>
+  <button id="go">類題を作成する（別タブで開きます）</button>
+  <p id="msg-app"></p>
 </div>
 
 <script>
@@ -317,21 +307,21 @@ document.getElementById('btn-login').onclick = () => {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-screen').style.display = 'block';
   } else {
-    document.getElementById('login-msg').textContent = '合言葉が違います';
+    document.getElementById('msg').textContent = '合言葉が違います';
   }
 };
 
 document.getElementById('go').onclick = async () => {
   const f = document.getElementById('img').files[0];
-  const msg = document.getElementById('msg');
-  const previewContainer = document.getElementById('preview-container');
-  const iframe = document.getElementById('preview-frame');
+  const msg = document.getElementById('msg-app');
+  const btn = document.getElementById('go');
   
-  if (!f) { msg.textContent = '画像を選択してください'; return; }
+  if (!f) { msg.textContent = '画像を選択してください'; msg.style.color = '#d9534f'; return; }
   
+  // ボタンを無効化して連打を防ぐ
+  btn.disabled = true;
   msg.textContent = '画像をAIで解析し、数値を生成中... (約10秒)';
   msg.style.color = '#1a4f8a';
-  previewContainer.style.display = 'none';
 
   const fd = new FormData();
   fd.append('image', f);
@@ -341,22 +331,27 @@ document.getElementById('go').onclick = async () => {
   try {
     const r = await fetch('/api/generate', {method:'POST', body:fd});
     if (!r.ok) { 
-      msg.textContent = 'エラー: ' + (await r.text()); 
+      msg.textContent = 'エラーが発生しました。もう一度お試しください。'; 
       msg.style.color = '#d9534f';
+      btn.disabled = false;
       return; 
     }
     const htmlText = await r.text();
-    iframe.srcdoc = htmlText;
-    previewContainer.style.display = 'block';
-    msg.textContent = '生成が完了しました！';
+    
+    // 生成完了したらメッセージを戻し、新しいタブを開く
+    msg.textContent = '生成完了！別タブにプリントを表示しました。';
     msg.style.color = '#28a745';
+    btn.disabled = false;
 
-    document.getElementById('btn-print').onclick = () => {
-      iframe.contentWindow.print();
-    };
+    // 新しいタブを開き、生成されたHTMLを書き込む
+    const newWindow = window.open('', '_blank');
+    newWindow.document.write(htmlText);
+    newWindow.document.close();
+
   } catch (e) {
     msg.textContent = '通信エラーが発生しました';
     msg.style.color = '#d9534f';
+    btn.disabled = false;
   }
 };
 </script>
