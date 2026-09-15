@@ -30,7 +30,7 @@ PROMPT = f"""この画像は中学数学の計算問題のページです。
 """
 
 def analyze(image_bytes: bytes, media_type: str = "image/jpeg"):
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = genai.GenerativeModel('gemini-3.6-flash')
     image_parts = [{"mime_type": media_type, "data": image_bytes}]
     response = model.generate_content([PROMPT, image_parts[0]])
     del image_bytes
