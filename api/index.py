@@ -6,7 +6,9 @@ import os
 import random
 from fractions import Fraction
 
-# --- analyzer.py の中身 ---
+# ==========================================
+# 1. AI画像解析 (analyzer.py 相当)
+# ==========================================
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY", ""))
 
 TYPES = """
@@ -30,6 +32,7 @@ PROMPT = f"""この画像は中学数学の計算問題のページです。
 """
 
 def analyze(image_bytes: bytes, media_type: str = "image/jpeg"):
+    # Google APIの仕様変更に合わせた最新モデル
     model = genai.GenerativeModel('gemini-3.6-flash')
     image_parts = [{"mime_type": media_type, "data": image_bytes}]
     response = model.generate_content([PROMPT, image_parts[0]])
@@ -43,7 +46,9 @@ def analyze(image_bytes: bytes, media_type: str = "image/jpeg"):
         return []
 
 
-# --- generators.py の中身 ---
+# ==========================================
+# 2. 問題自動生成ロジック (generators.py 相当)
+# ==========================================
 NZ = [i for i in range(-9, 10) if i != 0]
 
 def _p(n): return f"({n})" if n < 0 else f"{n}"
@@ -87,7 +92,6 @@ def seifu_shisoku(rng):
     op = rng.choice(["+", "-"])
     ans = a + b * c if op == "+" else a - b * c
     return f"{a} {op} {_p(b)} \\times {_p(c)}", str(ans)
-
 def bunsuu_kagen(rng):
     d1, d2 = rng.choice([2, 3, 4, 6]), rng.choice([2, 3, 4, 6])
     n1, n2 = rng.randint(1, d1 * 2), rng.randint(1, d2 * 2)
@@ -95,11 +99,9 @@ def bunsuu_kagen(rng):
     op = rng.choice(["+", "-"])
     ans = f1 + f2 if op == "+" else f1 - f2
     return f"{_frac(f1)} {op} {_frac(f2)}", _frac(ans)
-
 def moji_shiki(rng):
     a, b, c, d = rng.choice(NZ), rng.choice(NZ), rng.choice(NZ), rng.choice(NZ)
     return f"({_lin(a, b)}) - ({_lin(c, d)})", _lin(a - c, b - d)
-
 def ichiji_houteishiki(rng):
     x0 = rng.choice(NZ)
     a, c = rng.choice(NZ), rng.choice(NZ)
@@ -107,7 +109,6 @@ def ichiji_houteishiki(rng):
     b = rng.choice(NZ)
     d = a * x0 + b - c * x0
     return f"{_lin(a, b)} = {_lin(c, d)}", f"x = {x0}"
-
 def renritsu(rng):
     x0, y0 = rng.choice(NZ), rng.choice(NZ)
     a1, b1 = rng.choice([1, 2, 3, -1, -2]), rng.choice([1, 2, 3, -1, -2])
@@ -117,15 +118,12 @@ def renritsu(rng):
     e1 = f"{_lin(a1, 0)} {'+' if b1 > 0 else '-'} {abs(b1) if abs(b1) != 1 else ''}y = {c1}"
     e2 = f"{_lin(a2, 0)} {'+' if b2 > 0 else '-'} {abs(b2) if abs(b2) != 1 else ''}y = {c2}"
     return f"\\begin{{cases}} {e1} \\\\ {e2} \\end{{cases}}", f"x = {x0},\\ y = {y0}"
-
 def tenkai(rng):
     p, q_ = rng.choice(NZ), rng.choice(NZ)
     return f"({_lin(1, p)})({_lin(1, q_)})", _quad(p + q_, p * q_)
-
 def insuu_bunkai(rng):
     p, q_ = rng.choice(NZ), rng.choice(NZ)
     return _quad(p + q_, p * q_), f"({_lin(1, p)})({_lin(1, q_)})"
-
 def heihoukon(rng):
     if rng.random() < 0.5:
         a, b = rng.choice([2, 3, 5, 6, 8, 12]), rng.choice([2, 3, 5, 6, 8, 12])
@@ -135,7 +133,6 @@ def heihoukon(rng):
     k, m, n = rng.randint(2, 6), rng.randint(2, 6), rng.randint(1, 5)
     coef = k + m - n
     return f"{k}\\sqrt{{{base}}} + {m}\\sqrt{{{base}}} - {n}\\sqrt{{{base}}}", ("0" if coef == 0 else _sqrt_tex(coef, base))
-
 def niji_houteishiki(rng):
     p, q_ = rng.choice(NZ), rng.choice(NZ)
     b, c = -(p + q_), p * q_
@@ -168,7 +165,9 @@ def build_questions(sections, seed=None):
     return result
 
 
-# --- render.py の中身 ---
+# ==========================================
+# 3. PDF用レイアウト (render.py 相当)
+# ==========================================
 CSS = """
 @page { size: A4; margin: 15mm 12mm; }
 body { font-family: "Hiragino Mincho ProN","Yu Mincho",serif; margin:0; }
@@ -188,10 +187,23 @@ body { font-family: "Hiragino Mincho ProN","Yu Mincho",serif; margin:0; }
 .ans .item { margin-bottom: 6mm; font-size:11pt; }
 .ans .sec-title { margin: 5mm 0 3mm 0; }
 
+/* ★プレビュー画面での見た目（A4比率を保ったまま縮小）★ */
 @media screen {
-    body { background: transparent; padding: 0; }
-    .sheet { background: white; width: 100%; min-height: 297mm; padding: 15mm 12mm; box-sizing: border-box; margin: 0 auto 20px; }
-    .page-break { break-before: auto; border-top: 2px dashed #ccc; margin-top: 20px; padding-top: 20px; }
+    body { background: #f0f0f0; padding: 10px; }
+    .sheet { 
+        background: white; 
+        width: 210mm; 
+        min-height: 297mm; 
+        padding: 15mm 12mm; 
+        box-sizing: border-box; 
+        margin: 0 auto 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        max-width: 100%;
+        height: auto;
+        min-height: 0;
+        aspect-ratio: 210 / 297;
+    }
+    .page-break { break-before: auto; border-top: none; }
 }
 @media print {
     body { background: white; padding: 0; }
@@ -238,7 +250,9 @@ def to_html(title, sections, juku_name="進学塾テスト教室") -> str:
     return HTML_TEMPLATE.format(css=CSS, body=body)
 
 
-# --- メインのAPI処理 (main.py の中身) ---
+# ==========================================
+# 4. Webアプリ本体 (FastAPI)
+# ==========================================
 app = FastAPI()
 
 INDEX_HTML = """
@@ -261,7 +275,8 @@ INDEX_HTML = """
   #msg { margin-top: 16px; font-size: 14px; color: #d9534f; font-weight: bold; text-align: center; }
   #preview-container { display: none; margin-top: 30px; border-top: 2px dashed #ccc; padding-top: 20px; }
   .action-btn { background: #1a4f8a; margin-top: 10px; }
-  iframe { width: 100%; height: 600px; border: 1px solid #ccc; border-radius: 4px; margin-top: 10px; background: #fff; }
+  /* ★プレビュー枠を大きく、背景色をつけて紙を目立たせる★ */
+  iframe { width: 100%; height: 80vh; border: 1px solid #ccc; border-radius: 4px; margin-top: 10px; background: #e0e0e0; }
   #app-screen { display: none; }
 </style>
 </head>
@@ -290,7 +305,7 @@ INDEX_HTML = """
 
   <div id="preview-container">
     <h2>生成結果プレビュー</h2>
-    <p style="font-size:12px; color:#666;">※実際の紙面と同じレイアウトです。印刷ボタンからPDF保存が可能です。</p>
+    <p style="font-size:12px; color:#666;">※プレビューは縮小表示されています。印刷ボタンからPDF保存が可能です。</p>
     <iframe id="preview-frame"></iframe>
     <button class="action-btn" id="btn-print">このプリントを印刷する</button>
   </div>
@@ -349,11 +364,9 @@ document.getElementById('go').onclick = async () => {
 </html>
 """
 
-from fastapi.responses import HTMLResponse
-
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 def index():
-    return INDEX_HTML
+    return HTMLResponse(content=INDEX_HTML)
 
 @app.post("/api/generate")
 async def generate(
