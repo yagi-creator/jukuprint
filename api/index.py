@@ -261,7 +261,7 @@ INDEX_HTML = """
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>類題プリント自動生成システム (Demo)</title>
+<title>類題プリント自動生成システム</title>
 <style>
   body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f4f7f6; color: #333; margin: 0; padding: 0; }
   .header { background: #1a4f8a; color: #fff; padding: 16px; text-align: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -270,11 +270,53 @@ INDEX_HTML = """
   label { display: block; margin: 16px 0 6px; font-size: 14px; font-weight: bold; }
   input[type="text"], input[type="password"] { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
   input[type="file"] { width: 100%; padding: 10px; background: #f9f9f9; border: 1px dashed #ccc; border-radius: 4px; box-sizing: border-box; }
-  button { width: 100%; padding: 14px; font-size: 16px; font-weight: bold; margin-top: 20px; background: #28a745; color: #fff; border: none; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+  
+  /* ボタンとローディング */
+  button { 
+    width: 100%; padding: 14px; font-size: 16px; font-weight: bold; margin-top: 20px; 
+    background: #28a745; color: #fff; border: none; border-radius: 6px; cursor: pointer; 
+    display: flex; justify-content: center; align-items: center; 
+  }
   button:active { background: #218838; }
-  button:disabled { background: #ccc; cursor: not-allowed; }
+  button:disabled { background: #888; cursor: not-allowed; }
+  .spinner {
+    display: none; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%;
+    border-top-color: #fff; animation: spin 1s ease-in-out infinite; margin-right: 10px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
   #msg { margin-top: 16px; font-size: 14px; color: #1a4f8a; font-weight: bold; text-align: center; }
   #app-screen { display: none; }
+
+  /* ★ モーダル（結果を被せて表示する）のスタイル ★ */
+  .modal-overlay {
+    display: none; /* 初期状態は非表示 */
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.8); z-index: 1000;
+    justify-content: center; align-items: center; flex-direction: column;
+  }
+  .modal-content {
+    width: 95%; max-width: 800px; height: 90vh; background: #fff; border-radius: 8px;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal-header {
+    padding: 12px; background: #f8f9fa; border-bottom: 1px solid #ddd;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .modal-header h3 { margin: 0; font-size: 16px; color: #333; }
+  .btn-close {
+    background: transparent; color: #d9534f; border: none; font-size: 24px; cursor: pointer;
+    width: auto; padding: 0 10px; margin: 0;
+  }
+  .modal-body {
+    flex-grow: 1; padding: 0; background: #e0e0e0;
+  }
+  .modal-body iframe {
+    width: 100%; height: 100%; border: none; display: block;
+  }
+  .modal-footer {
+    padding: 12px; background: #fff; border-top: 1px solid #ddd;
+  }
+  .btn-print { background: #1a4f8a; margin: 0; }
 </style>
 </head>
 <body>
@@ -283,10 +325,10 @@ INDEX_HTML = """
 
 <div class="container" id="login-screen">
   <h2>システムにログイン</h2>
-  <label>合言葉</label>
+  <label>パスワード</label>
   <input type="password" id="passcode" placeholder="パスワードを入力">
   <button id="btn-login">ログイン</button>
-  <p id="msg" style="color:#d9534f;"></p>
+  <p id="msg-login" style="color:#d9534f; text-align:center; font-weight:bold;"></p>
 </div>
 
 <div class="container" id="app-screen">
@@ -297,8 +339,29 @@ INDEX_HTML = """
   <input type="file" id="img" accept="image/*" capture="environment">
   <label>プリントのタイトル</label>
   <input type="text" id="title" value="計算復習プリント">
-  <button id="go">類題を作成する（別タブで開きます）</button>
+  
+  <button id="go">
+    <div class="spinner" id="spinner"></div>
+    <span id="btn-text">類題を作成する</span>
+  </button>
   <p id="msg-app"></p>
+</div>
+
+<!-- ★ モーダル（結果表示領域） ★ -->
+<div class="modal-overlay" id="result-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>生成結果</h3>
+      <button class="btn-close" id="btn-close">✖</button>
+    </div>
+    <div class="modal-body">
+      <!-- ここにプリントのHTMLを流し込む -->
+      <iframe id="result-frame"></iframe>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-print" id="btn-print">このプリントを印刷（PDF保存）する</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -307,20 +370,28 @@ document.getElementById('btn-login').onclick = () => {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-screen').style.display = 'block';
   } else {
-    document.getElementById('msg').textContent = '合言葉が違います';
+    document.getElementById('msg-login').textContent = 'パスワードが違います';
   }
+};
+
+// モーダルを閉じる処理
+document.getElementById('btn-close').onclick = () => {
+  document.getElementById('result-modal').style.display = 'none';
 };
 
 document.getElementById('go').onclick = async () => {
   const f = document.getElementById('img').files[0];
   const msg = document.getElementById('msg-app');
   const btn = document.getElementById('go');
+  const spinner = document.getElementById('spinner');
+  const btnText = document.getElementById('btn-text');
   
   if (!f) { msg.textContent = '画像を選択してください'; msg.style.color = '#d9534f'; return; }
   
-  // ボタンを無効化して連打を防ぐ
   btn.disabled = true;
-  msg.textContent = '画像をAIで解析し、数値を生成中... (約10秒)';
+  spinner.style.display = 'block';
+  btnText.textContent = 'AIが解析・生成中...';
+  msg.textContent = '画像の文字数により、10秒〜30秒ほどかかる場合があります。';
   msg.style.color = '#1a4f8a';
 
   const fd = new FormData();
@@ -331,32 +402,40 @@ document.getElementById('go').onclick = async () => {
   try {
     const r = await fetch('/api/generate', {method:'POST', body:fd});
     if (!r.ok) { 
-      msg.textContent = 'エラーが発生しました。もう一度お試しください。'; 
-      msg.style.color = '#d9534f';
-      btn.disabled = false;
-      return; 
+      throw new Error(await r.text()); 
     }
     const htmlText = await r.text();
     
-    // 生成完了したらメッセージを戻し、新しいタブを開く
-    msg.textContent = '生成完了！別タブにプリントを表示しました。';
+    // 生成完了後、モーダル内に結果を入れて表示する
+    const iframe = document.getElementById('result-frame');
+    iframe.srcdoc = htmlText;
+    
+    document.getElementById('result-modal').style.display = 'flex'; // モーダルを表示
+    
+    // メッセージとボタンを元に戻す
+    msg.textContent = '生成完了！';
     msg.style.color = '#28a745';
     btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent = 'もう一度作成する';
 
-    // 新しいタブを開き、生成されたHTMLを書き込む
-    const newWindow = window.open('', '_blank');
-    newWindow.document.write(htmlText);
-    newWindow.document.close();
+    // 印刷ボタンの処理
+    document.getElementById('btn-print').onclick = () => {
+      iframe.contentWindow.print();
+    };
 
   } catch (e) {
-    msg.textContent = '通信エラーが発生しました';
+    msg.textContent = 'エラーが発生しました。画像を変えてもう一度お試しください。';
     msg.style.color = '#d9534f';
     btn.disabled = false;
+    spinner.style.display = 'none';
+    btnText.textContent = '類題を作成する';
   }
 };
 </script>
 </body>
 </html>
+
 """
 
 @app.get("/")
