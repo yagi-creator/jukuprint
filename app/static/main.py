@@ -6,7 +6,7 @@ app = FastAPI()
 
 @app.get("/")
 def index():
-    return FileResponse("static/index.html")
+    return FileResponse("app/static/index.html")
 
 @app.post("/api/generate")
 async def generate(
