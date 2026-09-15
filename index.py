@@ -349,9 +349,11 @@ document.getElementById('go').onclick = async () => {
 </html>
 """
 
-@app.get("/")
+from fastapi.responses import HTMLResponse
+
+@app.get("/", response_class=HTMLResponse)
 def index():
-    return HTMLResponse(content=INDEX_HTML)
+    return INDEX_HTML
 
 @app.post("/api/generate")
 async def generate(
